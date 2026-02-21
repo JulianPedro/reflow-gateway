@@ -5,7 +5,7 @@ set -euo pipefail
 # Reflow Gateway — Quick Install Script
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/reflow/gateway/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/JulianPedro/reflow-gateway/main/install.sh | bash
 #   # or
 #   bash install.sh
 # ─────────────────────────────────────────────────────────────

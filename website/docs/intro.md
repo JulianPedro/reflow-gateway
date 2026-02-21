@@ -97,7 +97,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 For a fully automated setup:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/reflow/gateway/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/JulianPedro/reflow-gateway/main/install.sh | bash
 ```
 
 This will clone the repo, generate secrets, start Docker Compose, and wait for the health check.

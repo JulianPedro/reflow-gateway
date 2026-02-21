@@ -79,7 +79,7 @@ Gateway is running at **http://localhost:3000**. API docs at **http://localhost:
 ### One-line install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/reflow/gateway/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/JulianPedro/reflow-gateway/main/install.sh | bash
 ```
 
 ### Helm (Kubernetes)
