@@ -1,0 +1,28 @@
+replicaCount: 1
+
+image:
+  repository: reflow/gateway-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+leaderElect: true
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+metricsPort: 8080
+healthPort: 8081
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

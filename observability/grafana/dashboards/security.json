@@ -1,0 +1,68 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 10, "stacking": { "mode": "normal" } } } },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Authorization Decisions Over Time",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum by (decision) (rate(mcp_authz_decisions_total[1m]))*60", "legendFormat": "{{decision}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "allow" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "deny" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      }
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 8 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Denied Requests / min",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(rate(mcp_authz_decisions_total{decision=\"deny\"}[1m]))*60", "legendFormat": "denials/min" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 8 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Denials (24h)",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(increase(mcp_authz_decisions_total{decision=\"deny\"}[24h]))", "legendFormat": "denials" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "id": 4,
+      "title": "Denials by Resource Type",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum by (resource_type) (rate(mcp_authz_decisions_total{decision=\"deny\"}[5m]))", "legendFormat": "{{resource_type}}" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["mcp", "reflow", "security"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "title": "Reflow Gateway - Security",
+  "uid": "reflow-security"
+}

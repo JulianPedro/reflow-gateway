@@ -1,0 +1,94 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/reflow/gateway
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Gateway configuration (rendered into config.yaml ConfigMap).
+# Values use ${VAR} syntax — actual secrets are injected via envFrom.
+config:
+  server:
+    port: 3000
+    host: "0.0.0.0"
+  database:
+    host: ""          # REQUIRED: external PostgreSQL host
+    port: 5432
+    user: reflow
+    database: reflow_gateway
+    sslmode: disable
+  cors:
+    allowedOrigins:
+      - "*"
+    allowedHeaders:
+      - "*"
+    exposeHeaders:
+      - "Mcp-Session-Id"
+      - "MCP-Protocol-Version"
+  session:
+    timeout: "30m"
+    cleanupInterval: "5m"
+  logging:
+    level: info
+    format: json
+  stdio:
+    idleTtl: "30m"
+    maxLifetime: "24h"
+    gcInterval: "1m"
+    maxProcesses: 100
+  kubernetes:
+    enabled: false
+    namespace: reflow
+    kubeconfig: ""
+    idleTtl: "30m"
+    maxLifetime: "24h"
+    gcInterval: "1m"
+    maxInstances: 100
+  telemetry:
+    enabled: false
+    endpoint: ""
+    serviceName: "reflow-gateway"
+    insecure: true
+
+# Secrets injected as environment variables.
+# The config.yaml references these via ${VAR} expansion.
+secrets:
+  jwtSecret: ""        # REQUIRED
+  encryptionKey: ""    # REQUIRED (exactly 32 characters)
+  dbPassword: ""       # REQUIRED
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: reflow-gateway.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: "1"
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

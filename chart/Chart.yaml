@@ -1,0 +1,16 @@
+apiVersion: v2
+name: reflow-gateway
+description: MCP multiplexing gateway with authentication, authorization, and credential injection
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - mcp
+  - gateway
+  - ai
+  - llm
+home: https://github.com/JulianPedro/reflow-gateway
+sources:
+  - https://github.com/JulianPedro/reflow-gateway
+maintainers:
+  - name: Reflow

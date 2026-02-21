@@ -1,0 +1,24 @@
+Reflow Gateway Operator has been installed.
+
+Verify the operator is running:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ .Chart.Name }}
+
+Check the CRD is registered:
+
+  kubectl get crd mcpinstances.mcp.reflow.io
+
+Create a test MCPInstance:
+
+  kubectl apply -f - <<EOF
+  apiVersion: mcp.reflow.io/v1alpha1
+  kind: MCPInstance
+  metadata:
+    name: test-instance
+    namespace: {{ .Release.Namespace }}
+  spec:
+    image: your-mcp-server:latest
+    targetName: test
+    targetID: "00000000-0000-0000-0000-000000000000"
+    subjectKey: "test:user"
+  EOF

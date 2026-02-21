@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reflow-postgres
+    environment:
+      POSTGRES_USER: reflow
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-reflow_dev_password}
+      POSTGRES_DB: reflow_gateway
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reflow -d reflow_gateway"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: reflow-backend
+    ports:
+      - "3000:3000"
+    environment:
+      DB_PASSWORD: ${DB_PASSWORD:-reflow_dev_password}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-12345678901234567890123456789012}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      # Mount kubeconfig only when using kubernetes transport:
+      # - ./kubeconfig.yaml:/app/kubeconfig.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  #frontend:
+  #  build:
+  #    context: ./frontend
+  #    dockerfile: Dockerfile
+  #  container_name: reflow-frontend
+  #  ports:
+  #    - "3001:3001"
+  #  environment:
+  #    NEXT_PUBLIC_API_URL: http://localhost:3000
+  #  depends_on:
+  #    backend:
+  #      condition: service_healthy
+
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: reflow-otel-lgtm
+    ports:
+      - "3002:3000"   # Grafana UI (3000 already used by backend)
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./observability/grafana/provisioning:/otel-lgtm/grafana/conf/provisioning
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+volumes:
+  postgres_data:

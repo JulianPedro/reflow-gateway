@@ -1,0 +1,25 @@
+Reflow Gateway has been deployed!
+
+1. Get the application URL:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "reflow-gateway.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "reflow-gateway.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+{{- else }}
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "reflow-gateway.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  echo "Gateway:  http://localhost:{{ .Values.service.port }}"
+  echo "API Docs: http://localhost:{{ .Values.service.port }}/docs"
+{{- end }}
+
+2. Register the first admin user:
+
+  curl -X POST http://localhost:{{ .Values.service.port }}/api/auth/register \
+    -H "Content-Type: application/json" \
+    -d '{"email":"admin@example.com","password":"secure123"}'

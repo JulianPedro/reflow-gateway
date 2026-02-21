@@ -1,0 +1,61 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } }
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Active Sessions",
+      "type": "stat",
+      "targets": [
+        { "expr": "mcp_sessions_active", "legendFormat": "sessions" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Upstream Errors / min",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(rate(mcp_upstream_requests_total{status=\"error\"}[1m]))*60", "legendFormat": "errors/min" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "id": 3,
+      "title": "Upstream Request Duration (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(mcp_upstream_request_duration_bucket[5m])) by (le, method))", "legendFormat": "{{method}} p95" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "id": 4,
+      "title": "Upstream Requests by Status",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum by (status) (rate(mcp_upstream_requests_total[1m]))*60", "legendFormat": "{{status}}" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["mcp", "reflow", "infrastructure"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Reflow Gateway - Infrastructure",
+  "uid": "reflow-infrastructure"
+}

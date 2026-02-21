@@ -1,0 +1,47 @@
+groups:
+  - name: reflow-gateway-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(mcp_requests_total{status="error"}[5m])) / sum(rate(mcp_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High MCP request error rate"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(mcp_request_duration_bucket[5m])) by (le)) > 5000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High MCP request latency"
+          description: "p95 latency is {{ $value }}ms over the last 5 minutes"
+
+      - alert: TargetDown
+        expr: sum by (target) (rate(mcp_upstream_requests_total{status="error"}[2m])) / sum by (target) (rate(mcp_upstream_requests_total[2m])) == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MCP target {{ $labels.target }} is down"
+          description: "Target {{ $labels.target }} has 100% error rate for 2 minutes"
+
+      - alert: SessionExplosion
+        expr: mcp_sessions_active > 1000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many active sessions"
+          description: "{{ $value }} active sessions exceeds threshold of 1000"
+
+      - alert: AuthDenialSpike
+        expr: sum(rate(mcp_authz_decisions_total{decision="deny"}[1m])) * 60 > 50
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of authorization denials"
+          description: "{{ $value }} denials/min may indicate an auth attack"

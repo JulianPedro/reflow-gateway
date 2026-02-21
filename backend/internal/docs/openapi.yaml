@@ -1,0 +1,2216 @@
+openapi: 3.0.3
+info:
+  title: Reflow Gateway API
+  description: |
+    MCP (Model Context Protocol) multiplexing gateway. Provides authentication,
+    fine-grained authorization, credential injection, and transport abstraction
+    for upstream MCP servers.
+
+    ## Authentication
+
+    All protected endpoints require a JWT token via `Authorization: Bearer <token>`.
+    Obtain a token by registering and logging in, or by creating an API token.
+
+    ## Authorization Model
+
+    The gateway operates on a **default-deny** model. Access to MCP servers,
+    tools, resources, and prompts requires explicit authorization policies.
+
+    ## MCP Protocol
+
+    The gateway exposes a single MCP endpoint at `/mcp` supporting Streamable HTTP
+    (POST for JSON-RPC, GET for SSE notifications, DELETE to close sessions).
+  version: 1.0.0
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Health
+    description: Health check endpoint
+  - name: Auth
+    description: User registration, login, and API token management
+  - name: Users
+    description: User management (admin only)
+  - name: Sessions
+    description: MCP session management
+  - name: Targets
+    description: Upstream MCP server configuration
+  - name: Target Tokens
+    description: Per-target credential management (user, role, group, default)
+  - name: Policies
+    description: Fine-grained authorization policies (default-deny)
+  - name: Environment Config
+    description: Per-target environment variable configuration with scoped resolution
+  - name: Logs
+    description: Request audit logs
+  - name: Observability
+    description: Real-time observability dashboard
+  - name: MCP
+    description: MCP Streamable HTTP endpoint (JSON-RPC 2.0)
+
+paths:
+  # ──────────────────────── Health ────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ──────────────────────── Auth ────────────────────────
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: |
+        Creates a new user account. The first user registered automatically
+        receives the `admin` role.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+                  token:
+                    type: string
+                    description: JWT token
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/tokens:
+    get:
+      tags: [Auth]
+      summary: List API tokens
+      operationId: listAPITokens
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of API tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/APIToken"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Auth]
+      summary: Create API token
+      description: Creates a long-lived JWT token for programmatic access (MCP clients).
+      operationId: createAPIToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAPITokenRequest"
+      responses:
+        "201":
+          description: Token created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_token:
+                    $ref: "#/components/schemas/APIToken"
+                  token:
+                    type: string
+                    description: JWT token (only returned once)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/tokens/{id}:
+    delete:
+      tags: [Auth]
+      summary: Revoke API token
+      operationId: revokeAPIToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────── Users ────────────────────────
+  /api/users:
+    get:
+      tags: [Users]
+      summary: List all users
+      description: Admin only.
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/users/{id}:
+    put:
+      tags: [Users]
+      summary: Update user
+      description: Update user role and/or groups. Admin only.
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users/{id}/recycle:
+    post:
+      tags: [Users, Sessions]
+      summary: Recycle user's MCP sessions
+      description: |
+        Forces all active MCP sessions for the specified user to recycle.
+        Closes HTTP upstream clients, clears tool mappings, and updates identity context.
+        Admin only.
+      operationId: recycleUserSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Sessions recycled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecycleResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ──────────────────────── Sessions ────────────────────────
+  /api/sessions/recycle:
+    post:
+      tags: [Sessions]
+      summary: Recycle own MCP sessions
+      description: Recycles all active MCP sessions for the current user.
+      operationId: recycleOwnSessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sessions recycled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecycleResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ──────────────────────── Targets ────────────────────────
+  /api/targets:
+    get:
+      tags: [Targets]
+      summary: List all targets
+      operationId: listTargets
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of targets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Target"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Targets]
+      summary: Create target
+      description: |
+        Registers a new upstream MCP server. Admin only.
+        Transport type determines which fields are required:
+        - `streamable-http` / `sse`: requires `url`
+        - `stdio`: requires `command`
+        - `kubernetes`: requires `image`
+      operationId: createTarget
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTargetRequest"
+      responses:
+        "201":
+          description: Target created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Target"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}:
+    get:
+      tags: [Targets]
+      summary: Get target
+      operationId: getTarget
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Target details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Target"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Targets]
+      summary: Update target
+      description: Admin only. All fields are optional (partial update).
+      operationId: updateTarget
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTargetRequest"
+      responses:
+        "200":
+          description: Target updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Target"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Targets]
+      summary: Delete target
+      description: Admin only.
+      operationId: deleteTarget
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Target deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/targets/{id}/restart-instances:
+    post:
+      tags: [Targets]
+      summary: Restart Kubernetes instances
+      description: Restarts all running Kubernetes MCPInstance pods for a target. Admin only.
+      operationId: restartInstances
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Instances restarted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  restarted:
+                    type: integer
+                  target:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ──────────────────────── Target Tokens ────────────────────────
+  /api/targets/{id}/tokens:
+    get:
+      tags: [Target Tokens]
+      summary: View all token configuration
+      description: Shows which user, role, group, and default tokens are configured. Admin only.
+      operationId: getTargetTokenConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Token configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TargetTokenConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/token:
+    get:
+      tags: [Target Tokens]
+      summary: Check own token
+      description: Returns whether the current user has a token set for this target.
+      operationId: getUserTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Token status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  has_token:
+                    type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Target Tokens]
+      summary: Set own token
+      operationId: setUserTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetTokenRequest"
+      responses:
+        "200":
+          description: Token set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [Target Tokens]
+      summary: Remove own token
+      operationId: deleteUserTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Token removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/targets/{id}/tokens/role:
+    put:
+      tags: [Target Tokens]
+      summary: Set role token
+      description: Admin only.
+      operationId: setRoleTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetRoleTokenRequest"
+      responses:
+        "200":
+          description: Role token set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/tokens/role/{role}:
+    delete:
+      tags: [Target Tokens]
+      summary: Delete role token
+      description: Admin only.
+      operationId: deleteRoleTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Role token deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/tokens/group:
+    put:
+      tags: [Target Tokens]
+      summary: Set group token
+      description: Admin only.
+      operationId: setGroupTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetGroupTokenRequest"
+      responses:
+        "200":
+          description: Group token set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/tokens/group/{group}:
+    delete:
+      tags: [Target Tokens]
+      summary: Delete group token
+      description: Admin only.
+      operationId: deleteGroupTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: group
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group token deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/tokens/default:
+    put:
+      tags: [Target Tokens]
+      summary: Set default token
+      description: Admin only. Fallback token used when no user/role/group token matches.
+      operationId: setDefaultTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetDefaultTokenRequest"
+      responses:
+        "200":
+          description: Default token set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      tags: [Target Tokens]
+      summary: Delete default token
+      description: Admin only.
+      operationId: deleteDefaultTargetToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Default token deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ──────────────────────── Policies ────────────────────────
+  /api/policies:
+    get:
+      tags: [Policies]
+      summary: List all policies
+      operationId: listPolicies
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of authorization policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuthorizationPolicy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Policies]
+      summary: Create policy
+      description: |
+        Creates a new authorization policy. Admin only.
+        Policies are evaluated by priority (highest first). First match wins.
+        If no policy matches, access is denied (default-deny).
+      operationId: createPolicy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePolicyRequest"
+      responses:
+        "201":
+          description: Policy created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizationPolicy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/policies/{id}:
+    get:
+      tags: [Policies]
+      summary: Get policy
+      operationId: getPolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Policy details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizationPolicy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Policies]
+      summary: Update policy
+      description: Admin only. All fields are optional (partial update).
+      operationId: updatePolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePolicyRequest"
+      responses:
+        "200":
+          description: Policy updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizationPolicy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Policies]
+      summary: Delete policy
+      description: Admin only.
+      operationId: deletePolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Policy deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/policies/{id}/subjects:
+    post:
+      tags: [Policies]
+      summary: Add subject to policy
+      description: Admin only.
+      operationId: addPolicySubject
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubjectRequest"
+      responses:
+        "201":
+          description: Subject added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicySubject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/policies/{id}/subjects/{subjectId}:
+    delete:
+      tags: [Policies]
+      summary: Remove subject from policy
+      description: Admin only.
+      operationId: deletePolicySubject
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Subject removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ──────────────────────── Environment Config ────────────────────────
+  /api/targets/{id}/env:
+    get:
+      tags: [Environment Config]
+      summary: List all env configs
+      description: Lists all environment configurations for a target, grouped by scope.
+      operationId: listEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Environment configuration list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TargetEnvConfigList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/targets/{id}/env/resolve:
+    get:
+      tags: [Environment Config]
+      summary: Resolve env configs for current user
+      description: |
+        Returns the fully resolved environment configuration for the current user,
+        applying the resolution priority: user > group > role > default.
+      operationId: resolveEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Resolved configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolvedEnvConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/targets/{id}/env/default:
+    get:
+      tags: [Environment Config]
+      summary: Get default env configs
+      operationId: getDefaultEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Default scope configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnvConfigListItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Environment Config]
+      summary: Bulk set default env configs
+      description: Replaces all default-scope env configs. Admin only.
+      operationId: bulkSetDefaultEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Configs set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Environment Config]
+      summary: Set single default env config
+      description: Admin only.
+      operationId: setDefaultEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Config set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/env/default/{key}:
+    delete:
+      tags: [Environment Config]
+      summary: Delete default env config
+      description: Admin only.
+      operationId: deleteDefaultEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Config deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/env/role/{scopeValue}:
+    get:
+      tags: [Environment Config]
+      summary: Get role env configs
+      operationId: getRoleEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      responses:
+        "200":
+          description: Role scope configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnvConfigListItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Environment Config]
+      summary: Bulk set role env configs
+      description: Admin only.
+      operationId: bulkSetRoleEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Configs set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Environment Config]
+      summary: Set single role env config
+      description: Admin only.
+      operationId: setRoleEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Config set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/env/role/{scopeValue}/{key}:
+    delete:
+      tags: [Environment Config]
+      summary: Delete role env config
+      description: Admin only.
+      operationId: deleteRoleEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Config deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/env/group/{scopeValue}:
+    get:
+      tags: [Environment Config]
+      summary: Get group env configs
+      operationId: getGroupEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      responses:
+        "200":
+          description: Group scope configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnvConfigListItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Environment Config]
+      summary: Bulk set group env configs
+      description: Admin only.
+      operationId: bulkSetGroupEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Configs set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Environment Config]
+      summary: Set single group env config
+      description: Admin only.
+      operationId: setGroupEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Config set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/env/group/{scopeValue}/{key}:
+    delete:
+      tags: [Environment Config]
+      summary: Delete group env config
+      description: Admin only.
+      operationId: deleteGroupEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Config deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/targets/{id}/env/user/{scopeValue}:
+    get:
+      tags: [Environment Config]
+      summary: Get user env configs
+      description: Users can view their own configs. Admins can view any user's configs.
+      operationId: getUserEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      responses:
+        "200":
+          description: User scope configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnvConfigListItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Environment Config]
+      summary: Bulk set user env configs
+      operationId: bulkSetUserEnvConfigs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Configs set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Environment Config]
+      summary: Set single user env config
+      operationId: setUserEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetEnvConfigRequest"
+      responses:
+        "200":
+          description: Config set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/targets/{id}/env/user/{scopeValue}/{key}:
+    delete:
+      tags: [Environment Config]
+      summary: Delete user env config
+      operationId: deleteUserEnvConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/scopeValue"
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Config deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ──────────────────────── Logs ────────────────────────
+  /api/logs:
+    get:
+      tags: [Logs]
+      summary: List request logs
+      description: Returns audit logs of MCP requests. Supports pagination.
+      operationId: listRequestLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Request logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RequestLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ──────────────────────── Observability ────────────────────────
+  /api/observability/ws:
+    get:
+      tags: [Observability]
+      summary: WebSocket for real-time dashboard
+      description: |
+        Upgrades to a WebSocket connection that streams real-time observability
+        data (request rates, latencies, active sessions, etc.).
+      operationId: observabilityWebSocket
+      security:
+        - bearerAuth: []
+      responses:
+        "101":
+          description: Switching protocols to WebSocket
+
+  /api/observability/snapshot:
+    get:
+      tags: [Observability]
+      summary: Get observability snapshot
+      description: Returns a point-in-time snapshot of observability metrics.
+      operationId: observabilitySnapshot
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Observability data
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Aggregated observability metrics
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ──────────────────────── MCP ────────────────────────
+  /mcp:
+    post:
+      tags: [MCP]
+      summary: Send MCP JSON-RPC request
+      description: |
+        Sends a JSON-RPC 2.0 request to the MCP gateway. The gateway routes the
+        request to the appropriate upstream MCP server(s) based on session state
+        and authorization policies.
+
+        **First request must be `initialize`** — the response will include an
+        `Mcp-Session-Id` header to use in subsequent requests.
+
+        Supported methods: `initialize`, `initialized`, `tools/list`, `tools/call`,
+        `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `ping`.
+      operationId: mcpPost
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Mcp-Session-Id
+          in: header
+          description: Session ID (returned by initialize)
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonRpcRequest"
+      responses:
+        "200":
+          description: JSON-RPC response
+          headers:
+            Mcp-Session-Id:
+              description: Session ID (set on initialize)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JsonRpcResponse"
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream for streaming responses
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    get:
+      tags: [MCP]
+      summary: Open SSE notification stream
+      description: |
+        Opens a Server-Sent Events stream for receiving MCP notifications
+        and server-initiated messages. Also used for legacy SSE transport
+        (returns an `endpoint` event with the POST URL).
+      operationId: mcpGet
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Mcp-Session-Id
+          in: header
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [MCP]
+      summary: Close MCP session
+      description: Terminates an active MCP session and releases upstream resources.
+      operationId: mcpDelete
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Mcp-Session-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session closed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    scopeValue:
+      name: scopeValue
+      in: path
+      required: true
+      description: "Scope identifier: role name, group name, or user ID"
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, user]
+        groups:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    APIToken:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        jti:
+          type: string
+        name:
+          type: string
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Target:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        url:
+          type: string
+        transport_type:
+          type: string
+          enum: [streamable-http, sse, stdio, kubernetes]
+        command:
+          type: string
+          description: STDIO transport only
+        args:
+          type: array
+          items:
+            type: string
+          description: STDIO transport only
+        image:
+          type: string
+          description: Kubernetes transport only
+        port:
+          type: integer
+          description: Kubernetes transport only
+        health_path:
+          type: string
+          description: Kubernetes transport only
+        statefulness:
+          type: string
+          enum: [stateless, stateful]
+        isolation_boundary:
+          type: string
+          enum: [shared, per_role, per_group, per_user]
+        auth_type:
+          type: string
+          enum: [bearer, header, ""]
+        auth_header_name:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AuthorizationPolicy:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        target_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: "null = applies to all targets"
+        resource_type:
+          type: string
+          enum: [all, tool, resource, prompt]
+        resource_pattern:
+          type: string
+          nullable: true
+          description: Regex pattern for resource name matching
+        effect:
+          type: string
+          enum: [allow, deny]
+        priority:
+          type: integer
+          description: Higher values are evaluated first
+        enabled:
+          type: boolean
+        subjects:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicySubject"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PolicySubject:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        policy_id:
+          type: string
+          format: uuid
+        subject_type:
+          type: string
+          enum: [user, role, group, everyone]
+        subject_value:
+          type: string
+          nullable: true
+          description: "user_id, role name, or group name. null for 'everyone'"
+        created_at:
+          type: string
+          format: date-time
+
+    RequestLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        method:
+          type: string
+          description: MCP method name
+        target_name:
+          type: string
+        request_body:
+          type: object
+        response_status:
+          type: integer
+        duration_ms:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    TargetTokenConfig:
+      type: object
+      properties:
+        target_id:
+          type: string
+          format: uuid
+        target_name:
+          type: string
+        has_default:
+          type: boolean
+        user_tokens:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id:
+                type: string
+                format: uuid
+              user_email:
+                type: string
+              updated_at:
+                type: string
+                format: date-time
+        role_tokens:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              updated_at:
+                type: string
+                format: date-time
+        group_tokens:
+          type: array
+          items:
+            type: object
+            properties:
+              group_name:
+                type: string
+              updated_at:
+                type: string
+                format: date-time
+
+    TargetEnvConfigList:
+      type: object
+      properties:
+        target_id:
+          type: string
+          format: uuid
+        target_name:
+          type: string
+        default_configs:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnvConfigListItem"
+        role_configs:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/EnvConfigListItem"
+        group_configs:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/EnvConfigListItem"
+        user_configs:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/EnvConfigListItem"
+
+    EnvConfigListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        description:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+
+    ResolvedEnvConfig:
+      type: object
+      properties:
+        target_id:
+          type: string
+          format: uuid
+        target_name:
+          type: string
+        configs:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnvConfigInfo"
+
+    EnvConfigInfo:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        source:
+          type: string
+          enum: [user, group, role, default]
+        scope_value:
+          type: string
+        description:
+          type: string
+
+    RecycleResponse:
+      type: object
+      properties:
+        recycled:
+          type: integer
+          description: Number of sessions recycled
+        user_id:
+          type: string
+          format: uuid
+
+    JsonRpcRequest:
+      type: object
+      required: [jsonrpc, method]
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        id:
+          oneOf:
+            - type: integer
+            - type: string
+        method:
+          type: string
+          description: "MCP method (e.g., initialize, tools/list, tools/call)"
+        params:
+          type: object
+      example:
+        jsonrpc: "2.0"
+        id: 1
+        method: initialize
+        params:
+          protocolVersion: "2025-03-26"
+          capabilities: {}
+          clientInfo:
+            name: my-client
+            version: "1.0"
+
+    JsonRpcResponse:
+      type: object
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        id:
+          oneOf:
+            - type: integer
+            - type: string
+        result:
+          type: object
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            data: {}
+
+    # ── Request schemas ──
+    CreateUserRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    CreateAPITokenRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        role:
+          type: string
+        groups:
+          type: array
+          items:
+            type: string
+
+    CreateTargetRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          description: Required for streamable-http and sse transports
+        transport_type:
+          type: string
+          enum: [streamable-http, sse, stdio, kubernetes]
+          default: streamable-http
+        command:
+          type: string
+          description: Required for stdio transport
+        args:
+          type: array
+          items:
+            type: string
+          description: STDIO transport arguments
+        image:
+          type: string
+          description: Required for kubernetes transport
+        port:
+          type: integer
+          description: Kubernetes MCP server port (default 8080)
+        health_path:
+          type: string
+          description: Kubernetes readiness probe path
+        statefulness:
+          type: string
+          enum: [stateless, stateful]
+          default: stateless
+        isolation_boundary:
+          type: string
+          enum: [shared, per_role, per_group, per_user]
+          default: shared
+        auth_type:
+          type: string
+          enum: [bearer, header, ""]
+        auth_header_name:
+          type: string
+
+    UpdateTargetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        transport_type:
+          type: string
+          enum: [streamable-http, sse, stdio, kubernetes]
+        command:
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        image:
+          type: string
+        port:
+          type: integer
+        health_path:
+          type: string
+        statefulness:
+          type: string
+          enum: [stateless, stateful]
+        isolation_boundary:
+          type: string
+          enum: [shared, per_role, per_group, per_user]
+        auth_type:
+          type: string
+        auth_header_name:
+          type: string
+        enabled:
+          type: boolean
+
+    SetTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    SetRoleTokenRequest:
+      type: object
+      required: [role, token]
+      properties:
+        role:
+          type: string
+        token:
+          type: string
+
+    SetGroupTokenRequest:
+      type: object
+      required: [group_name, token]
+      properties:
+        group_name:
+          type: string
+        token:
+          type: string
+
+    SetDefaultTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    CreatePolicyRequest:
+      type: object
+      required: [name, resource_type, effect, priority]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        target_id:
+          type: string
+          format: uuid
+          nullable: true
+        resource_type:
+          type: string
+          enum: [all, tool, resource, prompt]
+        resource_pattern:
+          type: string
+          nullable: true
+        effect:
+          type: string
+          enum: [allow, deny]
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+          default: true
+        subjects:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateSubjectRequest"
+
+    UpdatePolicyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        target_id:
+          type: string
+          format: uuid
+        resource_type:
+          type: string
+          enum: [all, tool, resource, prompt]
+        resource_pattern:
+          type: string
+        effect:
+          type: string
+          enum: [allow, deny]
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+
+    CreateSubjectRequest:
+      type: object
+      required: [subject_type]
+      properties:
+        subject_type:
+          type: string
+          enum: [user, role, group, everyone]
+        subject_value:
+          type: string
+          nullable: true
+          description: "user_id, role name, or group name. Omit for 'everyone'"
+
+    SetEnvConfigRequest:
+      type: object
+      required: [key, value]
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        description:
+          type: string

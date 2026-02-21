@@ -1,0 +1,150 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: mcpinstances.mcp.reflow.io
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.0
+spec:
+  group: mcp.reflow.io
+  names:
+    kind: MCPInstance
+    listKind: MCPInstanceList
+    plural: mcpinstances
+    singular: mcpinstance
+    shortNames:
+      - mcpi
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Target
+          type: string
+          jsonPath: .spec.targetName
+        - name: SubjectKey
+          type: string
+          jsonPath: .spec.subjectKey
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: MCPInstance is the Schema for the mcpinstances API.
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - image
+                - subjectKey
+                - targetName
+                - targetID
+              properties:
+                image:
+                  type: string
+                  description: Container image for the MCP server.
+                port:
+                  type: integer
+                  format: int32
+                  default: 8080
+                  description: Port the MCP server listens on.
+                healthPath:
+                  type: string
+                  description: HTTP path for readiness/liveness probes. Empty means no probe.
+                subjectKey:
+                  type: string
+                  description: Isolation key (e.g., "user:<hash>").
+                targetName:
+                  type: string
+                  description: Name of the gateway target.
+                targetID:
+                  type: string
+                  description: UUID of the gateway target.
+                env:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      value:
+                        type: string
+                      valueFrom:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                  description: Additional environment variables.
+                secretRef:
+                  type: string
+                  description: Secret name for envFrom.
+                command:
+                  type: array
+                  items:
+                    type: string
+                  description: Container entrypoint override.
+                args:
+                  type: array
+                  items:
+                    type: string
+                  description: Container arguments override.
+                resources:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: Resource requirements.
+                idleTTL:
+                  type: string
+                  default: "30m"
+                  description: Idle timeout before GC.
+                maxLifetime:
+                  type: string
+                  default: "24h"
+                  description: Maximum lifetime before GC.
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Ready
+                    - Failed
+                podName:
+                  type: string
+                serviceURL:
+                  type: string
+                startedAt:
+                  type: string
+                  format: date-time
+                lastUsedAt:
+                  type: string
+                  format: date-time
+                message:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string

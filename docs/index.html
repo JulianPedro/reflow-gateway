@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reflow Gateway — MCP Gateway for AI Agents</title>
+  <meta name="description"
+    content="Open-source MCP multiplexing gateway with authentication, fine-grained authorization, and credential injection. Connect AI clients to any MCP server, securely." />
+  <meta property="og:title" content="Reflow Gateway" />
+  <meta property="og:description"
+    content="Open-source MCP multiplexing gateway. Authentication, authorization, credential injection — in one place." />
+  <meta property="og:image" content="https://reflowgateway.com/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #050810;
+      --bg2: #0a0f1e;
+      --bg3: #0f1628;
+      --border: rgba(255, 255, 255, 0.07);
+      --blue: #3b82f6;
+      --blue-dim: #1d4ed8;
+      --cyan: #22d3ee;
+      --green: #4ade80;
+      --purple: #a78bfa;
+      --pink: #f472b6;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 12px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Ambient blobs ─────────────────────────────────────── */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.18;
+    }
+
+    .blob-1 {
+      width: 600px;
+      height: 600px;
+      background: #3b82f6;
+      top: -200px;
+      left: -100px;
+      animation: blobDrift1 18s ease-in-out infinite alternate;
+    }
+
+    .blob-2 {
+      width: 500px;
+      height: 500px;
+      background: #8b5cf6;
+      top: 40vh;
+      right: -150px;
+      animation: blobDrift2 22s ease-in-out infinite alternate;
+    }
+
+    .blob-3 {
+      width: 400px;
+      height: 400px;
+      background: #22d3ee;
+      bottom: 10vh;
+      left: 20%;
+      animation: blobDrift3 16s ease-in-out infinite alternate;
+      opacity: 0.1;
+    }
+
+    @keyframes blobDrift1 {
+      from {
+        transform: translate(0, 0) scale(1);
+      }
+
+      to {
+        transform: translate(60px, 80px) scale(1.1);
+      }
+    }
+
+    @keyframes blobDrift2 {
+      from {
+        transform: translate(0, 0) scale(1);
+      }
+
+      to {
+        transform: translate(-40px, 60px) scale(1.08);
+      }
+    }
+
+    @keyframes blobDrift3 {
+      from {
+        transform: translate(0, 0);
+      }
+
+      to {
+        transform: translate(80px, -40px);
+      }
+    }
+
+    /* ── Nav ───────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 40px;
+      background: rgba(5, 8, 16, 0.7);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(59, 130, 246, 0.12);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+
+    .nav-logo svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-links a:not(.btn) {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: .9rem;
+      padding: 6px 14px;
+      border-radius: 6px;
+      transition: color .2s, background .2s;
+    }
+
+    .nav-links a:not(.btn):hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .2s, opacity .15s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 0 32px rgba(59, 130, 246, 0.55);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .btn-outline:hover {
+      border-color: rgba(59, 130, 246, 0.4);
+      background: rgba(59, 130, 246, 0.06);
+    }
+
+    /* ── Hero ──────────────────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 120px 24px 80px;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 16px;
+      border-radius: 100px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      color: #93c5fd;
+      font-size: .8rem;
+      font-weight: 600;
+      margin-bottom: 32px;
+      text-decoration: none;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.15);
+      transition: box-shadow .2s;
+    }
+
+    .badge:hover {
+      box-shadow: 0 0 28px rgba(59, 130, 246, 0.3);
+    }
+
+    .hero h1 {
+      font-size: clamp(2.8rem, 6vw, 5rem);
+      font-weight: 800;
+      letter-spacing: -2px;
+      line-height: 1.08;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 .grad {
+      background: linear-gradient(135deg, #60a5fa 0%, #22d3ee 50%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.4));
+    }
+
+    .hero p {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: #94a3b8;
+      max-width: 580px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 64px;
+    }
+
+    /* ── Terminal ──────────────────────────────────────────── */
+    .terminal {
+      background: rgba(10, 15, 30, 0.9);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: var(--radius);
+      padding: 24px;
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: .82rem;
+      text-align: left;
+      max-width: 680px;
+      width: 100%;
+      margin: 0 auto;
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.05), 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 80px rgba(59, 130, 246, 0.08);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .terminal-dots span {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .d1 {
+      background: #ff5f57;
+    }
+
+    .d2 {
+      background: #febc2e;
+    }
+
+    .d3 {
+      background: #28c840;
+    }
+
+    .terminal-line {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .prompt {
+      color: #4ade80;
+      user-select: none;
+    }
+
+    .cmd {
+      color: var(--text);
+    }
+
+    .comment {
+      color: var(--muted);
+    }
+
+    .out {
+      color: #22d3ee;
+      margin-bottom: 4px;
+    }
+
+    /* ── Section ───────────────────────────────────────────── */
+    section {
+      padding: 100px 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -1.2px;
+      line-height: 1.18;
+      margin-bottom: 16px;
+    }
+
+    .section-title .grad {
+      background: linear-gradient(135deg, #60a5fa, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .section-sub {
+      color: #64748b;
+      font-size: 1.05rem;
+      max-width: 560px;
+      line-height: 1.7;
+    }
+
+    /* ── Divider ───────────────────────────────────────────── */
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.2), transparent);
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       LIVE FLOW VISUALIZATION (observability-style)
+    ══════════════════════════════════════════════════════════ */
+    .flow-scene {
+      margin-top: 56px;
+      background: rgba(10, 15, 30, 0.8);
+      border: 1px solid rgba(59, 130, 246, 0.15);
+      border-radius: 16px;
+      padding: 48px 32px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.04), 0 32px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .flow-scene::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 40% at 50% 50%, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0;
+      align-items: center;
+      min-height: 280px;
+    }
+
+    /* Client nodes */
+    .flow-clients {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .flow-node {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: .82rem;
+      font-weight: 600;
+      position: relative;
+      white-space: nowrap;
+      transition: box-shadow .3s;
+    }
+
+    .flow-node-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .node-client {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.12);
+    }
+
+    .node-client .flow-node-dot {
+      background: #3b82f6;
+      box-shadow: 0 0 8px #3b82f6;
+    }
+
+    .node-gateway {
+      background: rgba(139, 92, 246, 0.12);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #c4b5fd;
+      padding: 20px 24px;
+      border-radius: 14px;
+      flex-direction: column;
+      text-align: center;
+      min-width: 160px;
+      box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.1), 0 0 40px rgba(139, 92, 246, 0.2), 0 0 80px rgba(139, 92, 246, 0.08);
+      animation: gatewayPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes gatewayPulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.1), 0 0 40px rgba(139, 92, 246, 0.2), 0 0 80px rgba(139, 92, 246, 0.08);
+      }
+
+      50% {
+        box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.2), 0 0 60px rgba(139, 92, 246, 0.35), 0 0 100px rgba(139, 92, 246, 0.12);
+      }
+    }
+
+    .node-gateway .gw-icon {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+
+    .node-gateway .gw-title {
+      font-size: .95rem;
+      font-weight: 700;
+      color: #c4b5fd;
+    }
+
+    .node-gateway .gw-sub {
+      font-size: .72rem;
+      color: #7c3aed;
+      margin-top: 4px;
+    }
+
+    .node-server {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #6ee7b7;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.08);
+    }
+
+    .node-server .flow-node-dot {
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .node-server-amber {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fcd34d;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.08);
+    }
+
+    .node-server-amber .flow-node-dot {
+      background: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+    }
+
+    /* Edges / connectors */
+    .flow-edges {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .flow-arrows {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 0 8px;
+    }
+
+    .edge-line {
+      height: 2px;
+      width: 80px;
+      position: relative;
+      border-radius: 2px;
+      overflow: hidden;
+      background: rgba(34, 211, 238, 0.12);
+    }
+
+    .edge-line::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, #22d3ee, transparent);
+      animation: flowPulse 2s linear infinite;
+    }
+
+    .edge-line:nth-child(2)::after {
+      animation-delay: .4s;
+    }
+
+    .edge-line:nth-child(3)::after {
+      animation-delay: .8s;
+    }
+
+    @keyframes flowPulse {
+      0% {
+        left: -100%;
+      }
+
+      100% {
+        left: 100%;
+      }
+    }
+
+    .edge-arr {
+      color: #22d3ee;
+      font-size: .9rem;
+      opacity: 0.7;
+    }
+
+    .flow-center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+    }
+
+    .flow-servers {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    /* Edge labels */
+    .edge-label {
+      font-size: .65rem;
+      color: #475569;
+      text-align: center;
+      margin-top: 2px;
+      font-family: monospace;
+    }
+
+    .flow-edge-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Gateway pills */
+    .gw-pills {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 10px;
+    }
+
+    .gw-pill {
+      font-size: .62rem;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-weight: 600;
+      letter-spacing: .04em;
+    }
+
+    .pill-auth {
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .pill-policy {
+      background: rgba(167, 139, 250, 0.15);
+      color: #c4b5fd;
+      border: 1px solid rgba(167, 139, 250, 0.2);
+    }
+
+    .pill-inject {
+      background: rgba(74, 222, 128, 0.1);
+      color: #86efac;
+      border: 1px solid rgba(74, 222, 128, 0.2);
+    }
+
+    /* Metric cards below flow */
+    .flow-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .metric-card {
+      background: rgba(15, 22, 40, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-align: center;
+    }
+
+    .metric-val {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -.5px;
+      background: linear-gradient(135deg, #60a5fa, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .metric-key {
+      font-size: .72rem;
+      color: #475569;
+      margin-top: 2px;
+    }
+
+    /* Activity feed */
+    .flow-activity {
+      margin-top: 16px;
+      background: rgba(10, 15, 28, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: .72rem;
+      color: #475569;
+    }
+
+    .activity-title {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #334155;
+      margin-bottom: 8px;
+    }
+
+    .act-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 3px 0;
+    }
+
+    .act-time {
+      color: #334155;
+      min-width: 48px;
+    }
+
+    .act-user {
+      color: #4ade80;
+    }
+
+    .act-method {
+      color: #60a5fa;
+    }
+
+    .act-target {
+      color: #a78bfa;
+    }
+
+    .act-ok {
+      color: #4ade80;
+    }
+
+    .act-dot {
+      color: #1e293b;
+    }
+
+    .act-ms {
+      color: #334155;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       PROBLEM / SOLUTION SECTION
+    ══════════════════════════════════════════════════════════ */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 56px;
+    }
+
+    @media (max-width: 768px) {
+      .problem-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .problem-card {
+      border-radius: 14px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .problem-card.problem {
+      background: rgba(239, 68, 68, 0.04);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+    }
+
+    .problem-card.solution {
+      background: rgba(74, 222, 128, 0.04);
+      border: 1px solid rgba(74, 222, 128, 0.15);
+    }
+
+    .problem-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .problem-card.problem h3 {
+      color: #f87171;
+    }
+
+    .problem-card.solution h3 {
+      color: #4ade80;
+    }
+
+    .problem-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .problem-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: .88rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    .problem-list li::before {
+      content: attr(data-icon);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Credential flow diagram */
+    .cred-flow {
+      margin-top: 48px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .cred-col {
+      padding: 28px 24px;
+      background: var(--bg2);
+    }
+
+    .cred-col-title {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .cred-col:nth-child(1) .cred-col-title {
+      color: #60a5fa;
+    }
+
+    .cred-col:nth-child(2) .cred-col-title {
+      color: #a78bfa;
+    }
+
+    .cred-col:nth-child(3) .cred-col-title {
+      color: #4ade80;
+    }
+
+    .cred-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: .82rem;
+    }
+
+    .cred-item-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .cred-col:nth-child(1) .cred-item {
+      background: rgba(59, 130, 246, 0.07);
+      color: #93c5fd;
+    }
+
+    .cred-col:nth-child(1) .cred-item-dot {
+      background: #3b82f6;
+      box-shadow: 0 0 6px #3b82f6;
+    }
+
+    .cred-col:nth-child(2) .cred-item {
+      background: rgba(139, 92, 246, 0.07);
+      color: #c4b5fd;
+    }
+
+    .cred-col:nth-child(2) .cred-item-dot {
+      background: #8b5cf6;
+      box-shadow: 0 0 6px #8b5cf6;
+    }
+
+    .cred-col:nth-child(3) .cred-item {
+      background: rgba(74, 222, 128, 0.07);
+      color: #86efac;
+    }
+
+    .cred-col:nth-child(3) .cred-item-dot {
+      background: #4ade80;
+      box-shadow: 0 0 6px #4ade80;
+    }
+
+    .cred-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+      color: #1e293b;
+      margin: 12px 0;
+      gap: 4px;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       FEATURES GRID
+    ══════════════════════════════════════════════════════════ */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-top: 56px;
+    }
+
+    .feature-card {
+      background: var(--bg2);
+      padding: 28px;
+      transition: background .2s;
+      position: relative;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 80% at 0% 0%, rgba(59, 130, 246, 0.05), transparent);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .feature-card:hover {
+      background: rgba(15, 22, 40, 0.95);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      margin-bottom: 16px;
+    }
+
+    .icon-blue {
+      background: rgba(59, 130, 246, 0.12);
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.1) inset;
+    }
+
+    .icon-cyan {
+      background: rgba(34, 211, 238, 0.1);
+      box-shadow: 0 0 16px rgba(34, 211, 238, 0.08) inset;
+    }
+
+    .icon-green {
+      background: rgba(74, 222, 128, 0.1);
+      box-shadow: 0 0 16px rgba(74, 222, 128, 0.08) inset;
+    }
+
+    .icon-purple {
+      background: rgba(167, 139, 250, 0.1);
+      box-shadow: 0 0 16px rgba(167, 139, 250, 0.08) inset;
+    }
+
+    .feature-card h3 {
+      font-size: .95rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: .87rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       TRANSPORT GRID
+    ══════════════════════════════════════════════════════════ */
+    .transport-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 48px;
+    }
+
+    .transport-card {
+      background: var(--bg2);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: border-color .2s, transform .2s, box-shadow .2s;
+    }
+
+    .transport-card:hover {
+      border-color: rgba(59, 130, 246, 0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(59, 130, 246, 0.06);
+    }
+
+    .transport-badge {
+      display: inline-block;
+      font-family: monospace;
+      font-size: .73rem;
+      padding: 3px 10px;
+      border-radius: 100px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      margin-bottom: 12px;
+    }
+
+    .transport-card h3 {
+      font-size: .93rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .transport-card p {
+      font-size: .84rem;
+      color: #64748b;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       CODE BLOCK
+    ══════════════════════════════════════════════════════════ */
+    .code-block {
+      background: rgba(10, 15, 28, 0.9);
+      border: 1px solid rgba(59, 130, 246, 0.15);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(0, 0, 0, 0.5), 0 0 30px rgba(59, 130, 246, 0.04);
+    }
+
+    .code-tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .code-tab {
+      padding: 10px 20px;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: #475569;
+      border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s;
+    }
+
+    .code-tab.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+    }
+
+    .code-tab:hover {
+      color: #94a3b8;
+    }
+
+    .code-content {
+      display: none;
+    }
+
+    .code-content.active {
+      display: block;
+    }
+
+    pre {
+      padding: 24px;
+      font-family: 'Menlo', 'Monaco', monospace;
+      font-size: .81rem;
+      overflow-x: auto;
+      line-height: 1.75;
+      color: #94a3b8;
+    }
+
+    .kw {
+      color: #a78bfa;
+    }
+
+    .str {
+      color: #4ade80;
+    }
+
+    .cmt {
+      color: #334155;
+      font-style: italic;
+    }
+
+    .key {
+      color: #22d3ee;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       PROBLEM → SOLUTION STRIP (replacing stats)
+    ══════════════════════════════════════════════════════════ */
+    .auth-strip {
+      background: rgba(10, 15, 28, 0.8);
+      border-top: 1px solid rgba(59, 130, 246, 0.1);
+      border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+    }
+
+    .auth-strip .container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+    }
+
+    .auth-col {
+      padding: 48px 32px;
+      position: relative;
+    }
+
+    .auth-col+.auth-col {
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .auth-col-icon {
+      font-size: 1.5rem;
+      margin-bottom: 14px;
+    }
+
+    .auth-col-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .auth-col-body {
+      font-size: .88rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    .auth-col:nth-child(1) .auth-col-title {
+      color: #60a5fa;
+    }
+
+    .auth-col:nth-child(2) .auth-col-title {
+      color: #a78bfa;
+    }
+
+    .auth-col:nth-child(3) .auth-col-title {
+      color: #4ade80;
+    }
+
+    @media (max-width: 768px) {
+      .auth-strip .container {
+        grid-template-columns: 1fr;
+      }
+
+      .auth-col+.auth-col {
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
+    }
+
+    /* ── CTA ───────────────────────────────────────────────── */
+    .cta-section {
+      background: linear-gradient(180deg, transparent, rgba(10, 15, 28, 0.8));
+      text-align: center;
+      position: relative;
+    }
+
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 80% at 50% 100%, rgba(59, 130, 246, 0.08), transparent);
+      pointer-events: none;
+    }
+
+    .cta-section h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .cta-section p {
+      color: #64748b;
+      margin-bottom: 36px;
+      font-size: 1.05rem;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── Footer ────────────────────────────────────────────── */
+    footer {
+      padding: 40px 24px;
+      text-align: center;
+      color: #334155;
+      font-size: .83rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      position: relative;
+      z-index: 1;
+    }
+
+    footer a {
+      color: #475569;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: #94a3b8;
+    }
+
+    /* ── Neon glow utilities ───────────────────────────────── */
+    .glow-blue {
+      text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    }
+
+    .glow-cyan {
+      text-shadow: 0 0 20px rgba(34, 211, 238, 0.5);
+    }
+
+    .glow-purple {
+      text-shadow: 0 0 20px rgba(167, 139, 250, 0.5);
+    }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      nav {
+        padding: 14px 20px;
+      }
+
+      .nav-links a:not(.btn) {
+        display: none;
+      }
+
+      section {
+        padding: 70px 20px;
+      }
+
+      .flow-grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+
+      .flow-center {
+        display: none;
+      }
+
+      .flow-clients,
+      .flow-servers {
+        align-items: center;
+      }
+
+      .flow-metrics {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .cred-flow {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .flow-metrics {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Ambient blobs -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+  <nav>
+    <a href="/" class="nav-logo">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="8" fill="#7c3aed" />
+        <polygon points="17,7 9,18 16,18 15,25 23,14 16,14" fill="white" />
+      </svg>
+      Reflow Gateway
+    </a>
+    <div class="nav-links">
+      <a href="/docs/architecture">Docs</a>
+      <a href="https://github.com/JulianPedro/reflow-gateway" target="_blank">GitHub</a>
+      <a href="/docs/api-reference" class="btn btn-outline" style="padding:6px 14px;font-size:.85rem;">API Ref</a>
+      <a href="https://github.com/JulianPedro/reflow-gateway" class="btn btn-primary"
+        style="padding:6px 14px;font-size:.85rem;">★
+        Star</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ────────────────────────────────────────────────────────────── -->
+  <div class="hero">
+    <a href="https://github.com/JulianPedro/reflow-gateway/releases" class="badge">
+      🎉 &nbsp; v1.0 — now open source
+    </a>
+
+    <h1>
+      Secure MCP access for<br />
+      <span class="grad">every team, every tool</span>
+    </h1>
+
+    <p>
+      Reflow Gateway solves the MCP authentication segregation problem.
+      Each user, group, and role gets exactly the credentials they're allowed —
+      and nothing more.
+    </p>
+
+    <div class="hero-cta">
+      <a href="#problem" class="btn btn-primary">See how it works →</a>
+      <a href="https://github.com/JulianPedro/reflow-gateway" class="btn btn-outline" target="_blank">View on GitHub</a>
+    </div>
+
+    <div class="terminal">
+      <div class="terminal-dots">
+        <span class="d1"></span><span class="d2"></span><span class="d3"></span>
+      </div>
+      <div class="terminal-line">
+        <span class="prompt">$</span>
+        <span class="cmd">curl -fsSL https://raw.githubusercontent.com/reflow/gateway/main/install.sh | bash</span>
+      </div>
+      <div class="out"> ✓ Checking prerequisites</div>
+      <div class="out"> ✓ Cloning repository</div>
+      <div class="out"> ✓ Generating secrets</div>
+      <div class="out"> ✓ Starting services</div>
+      <div class="out"> ✓ Gateway is healthy</div>
+      <br />
+      <div class="terminal-line">
+        <span class="comment"> Gateway API: http://localhost:3000</span>
+      </div>
+      <div class="terminal-line">
+        <span class="comment"> API Docs: http://localhost:3000/docs</span>
+      </div>
+      <div class="terminal-line">
+        <span class="comment"> Grafana: http://localhost:3002</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Live flow visualization ───────────────────────────────────────── -->
+  <section style="padding-top:0;">
+    <div class="container">
+      <div class="divider"></div>
+      <br /><br />
+      <div class="section-label">Architecture</div>
+      <h2 class="section-title">One endpoint, <span class="grad">many servers</span></h2>
+      <p class="section-sub">
+        The gateway sits between your AI clients and all your MCP servers.
+        It handles auth, routes requests, and injects credentials — automatically.
+      </p>
+
+      <div class="flow-scene">
+
+        <div class="flow-grid">
+
+          <!-- Left: Clients -->
+          <div class="flow-clients">
+            <div class="flow-node node-client">
+              <div class="flow-node-dot"></div>
+              Claude Desktop
+            </div>
+            <div class="flow-node node-client">
+              <div class="flow-node-dot"></div>
+              Cursor
+            </div>
+            <div class="flow-node node-client">
+              <div class="flow-node-dot"></div>
+              Windsurf
+            </div>
+            <div class="flow-node node-client">
+              <div class="flow-node-dot"></div>
+              Any MCP Client
+            </div>
+          </div>
+
+          <!-- Center: Edges + Gateway -->
+          <div class="flow-center">
+            <div style="display:flex; align-items:center; gap:0;">
+
+              <!-- Left arrows -->
+              <div style="display:flex; flex-direction:column; gap:10px; margin-right:4px;">
+                <div class="flow-edge-group">
+                  <div class="edge-line"></div>
+                  <div class="edge-label">JWT Bearer</div>
+                </div>
+                <div class="flow-edge-group">
+                  <div class="edge-line"></div>
+                </div>
+                <div class="flow-edge-group">
+                  <div class="edge-line"></div>
+                </div>
+                <div class="flow-edge-group">
+                  <div class="edge-line"></div>
+                  <div class="edge-label">tools/call</div>
+                </div>
+              </div>
+
+              <span class="edge-arr">→</span>
+
+              <!-- Gateway node -->
+              <div class="flow-node node-gateway" style="margin: 0 4px;">
+                <div class="gw-icon">
+                  <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"
+                    style="width:36px;height:36px;">
+                    <rect width="32" height="32" rx="8" fill="#6d28d9" />
+                    <polygon points="17,7 9,18 16,18 15,25 23,14 16,14" fill="white" />
+                  </svg>
+                </div>
+                <div class="gw-title">Reflow Gateway</div>
+                <div class="gw-pills">
+                  <span class="gw-pill pill-auth">JWT Auth</span>
+                  <span class="gw-pill pill-policy">Policy Eval</span>
+                  <span class="gw-pill pill-inject">Cred Inject</span>
+                </div>
+              </div>
+
+              <span class="edge-arr">→</span>
+
+              <!-- Right arrows -->
+              <div style="display:flex; flex-direction:column; gap:10px; margin-left:4px;">
+                <div class="flow-edge-group">
+                  <div class="edge-line" style="animation-delay:.1s"></div>
+                  <div class="edge-label">token-A</div>
+                </div>
+                <div class="flow-edge-group">
+                  <div class="edge-line" style="animation-delay:.5s"></div>
+                  <div class="edge-label">token-B</div>
+                </div>
+                <div class="flow-edge-group">
+                  <div class="edge-line" style="animation-delay:.9s"></div>
+                </div>
+                <div class="flow-edge-group">
+                  <div class="edge-line" style="animation-delay:1.3s"></div>
+                  <div class="edge-label">k8s pod</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Right: MCP Servers -->
+          <div class="flow-servers">
+            <div class="flow-node node-server">
+              <div class="flow-node-dot"></div>
+              GitHub MCP
+            </div>
+            <div class="flow-node node-server">
+              <div class="flow-node-dot"></div>
+              Jira MCP
+            </div>
+            <div class="flow-node node-server-amber">
+              <div class="flow-node-dot"></div>
+              Slack MCP
+            </div>
+            <div class="flow-node node-server">
+              <div class="flow-node-dot"></div>
+              Custom MCP
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Metric cards -->
+        <div class="flow-metrics">
+          <div class="metric-card">
+            <div class="metric-val">3,241</div>
+            <div class="metric-key">Requests / hr</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val">12ms</div>
+            <div class="metric-key">Avg Latency</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val">0.2%</div>
+            <div class="metric-key">Error Rate</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val">18</div>
+            <div class="metric-key">Active Sessions</div>
+          </div>
+        </div>
+
+        <!-- Activity feed -->
+        <div class="flow-activity">
+          <div class="activity-title">Live activity</div>
+          <div class="act-row">
+            <span class="act-time">00:01</span>
+            <span class="act-user">alice</span>
+            <span class="act-dot">·</span>
+            <span class="act-method">tools/call</span>
+            <span class="act-dot">→</span>
+            <span class="act-target">github</span>
+            <span class="act-dot">·</span>
+            <span class="act-ok">200</span>
+            <span class="act-ms">· 8ms</span>
+          </div>
+          <div class="act-row">
+            <span class="act-time">00:02</span>
+            <span class="act-user">bob</span>
+            <span class="act-dot">·</span>
+            <span class="act-method">tools/call</span>
+            <span class="act-dot">→</span>
+            <span class="act-target">jira</span>
+            <span class="act-dot">·</span>
+            <span class="act-ok">200</span>
+            <span class="act-ms">· 14ms</span>
+          </div>
+          <div class="act-row">
+            <span class="act-time">00:03</span>
+            <span class="act-user">charlie</span>
+            <span class="act-dot">·</span>
+            <span class="act-method">tools/list</span>
+            <span class="act-dot">→</span>
+            <span class="act-target">slack</span>
+            <span class="act-dot">·</span>
+            <span class="act-ok">200</span>
+            <span class="act-ms">· 5ms</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Problem → Solution ───────────────────────────────────────────── -->
+  <section id="problem">
+    <div class="container">
+      <div class="section-label">The Problem</div>
+      <h2 class="section-title">MCP has an authentication<br /><span class="grad">segregation problem</span></h2>
+      <p class="section-sub">
+        When multiple users share AI agents connected to the same MCP servers,
+        credentials and permissions bleed across users — or every user needs their own server.
+      </p>
+
+      <div class="problem-grid">
+        <div class="problem-card problem">
+          <h3>😤 Without a gateway</h3>
+          <ul class="problem-list">
+            <li data-icon="🔑">One shared API token for all users — everyone sees everything</li>
+            <li data-icon="🔀">Each user needs a separate MCP server instance to isolate creds</li>
+            <li data-icon="🤷">No way to say "Alice gets GitHub access but not Jira"</li>
+            <li data-icon="📵">No audit trail — you don't know who called what tool</li>
+            <li data-icon="🔓">No default-deny — every tool is accessible by default</li>
+            <li data-icon="💸">Credential sprawl: tokens scattered across env files and config</li>
+          </ul>
+        </div>
+        <div class="problem-card solution">
+          <h3>✅ With Reflow Gateway</h3>
+          <ul class="problem-list">
+            <li data-icon="🔑">Per-user, per-group, per-role credential injection — automatically</li>
+            <li data-icon="🛡️">One gateway handles all users with isolated credential contexts</li>
+            <li data-icon="📋">Fine-grained policies: target, tool, resource, and prompt level</li>
+            <li data-icon="🔍">Every MCP call audited with user identity, method, and duration</li>
+            <li data-icon="🔒">Default-deny: no access without an explicit allow policy</li>
+            <li data-icon="🗄️">Credentials stored encrypted with AES-256-GCM, never in logs</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Credential resolution flow -->
+      <div class="cred-flow">
+        <div class="cred-col">
+          <div class="cred-col-title">Identities</div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            alice (developer)
+          </div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            bob (qa-team)
+          </div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            charlie (admin)
+          </div>
+          <div class="cred-arrow">Bearer JWT →</div>
+        </div>
+        <div class="cred-col">
+          <div class="cred-col-title">Gateway resolves</div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            alice → GitHub token A
+          </div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            bob → Jira token (qa-team)
+          </div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            charlie → all tokens
+          </div>
+          <div class="cred-arrow">user &gt; group &gt; role &gt; default</div>
+        </div>
+        <div class="cred-col">
+          <div class="cred-col-title">Upstream sees</div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            GitHub ← alice's PAT
+          </div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            Jira ← qa-team token
+          </div>
+          <div class="cred-item">
+            <div class="cred-item-dot"></div>
+            Slack ← admin token
+          </div>
+          <div class="cred-arrow">client never sees these</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Auth segregation pillars ─────────────────────────────────────── -->
+  <section class="auth-strip" style="padding:0;">
+    <div class="container">
+      <div class="auth-col">
+        <div class="auth-col-icon">👤</div>
+        <div class="auth-col-title">Per-user isolation</div>
+        <div class="auth-col-body">
+          Alice's GitHub PAT is used when Alice calls tools. Bob gets his own token. No shared credentials, no
+          permission bleed.
+        </div>
+      </div>
+      <div class="auth-col">
+        <div class="auth-col-icon">👥</div>
+        <div class="auth-col-title">Per-group &amp; role scoping</div>
+        <div class="auth-col-body">
+          DevTeam shares a Jira service account. QA has read-only access. Ops gets production. All driven by JWT claims.
+        </div>
+      </div>
+      <div class="auth-col">
+        <div class="auth-col-icon">🚫</div>
+        <div class="auth-col-title">Default-deny policies</div>
+        <div class="auth-col-body">
+          Nothing is accessible without an explicit allow. Policies target servers, tools, resources, and prompts
+          independently.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Features ─────────────────────────────────────────────────────── -->
+  <section>
+    <div class="container">
+      <div class="section-label">Features</div>
+      <h2 class="section-title">Everything you need,<br />nothing you don't</h2>
+      <p class="section-sub">Built for teams that need auditability and fine-grained control over AI agent access.</p>
+
+      <div class="features">
+        <div class="feature-card">
+          <div class="feature-icon icon-blue">🔀</div>
+          <h3>MCP Multiplexing</h3>
+          <p>Aggregate tools, resources, and prompts from multiple MCP servers into one endpoint. Prefixed automatically
+            when needed.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan">🛡️</div>
+          <h3>Default-deny Authorization</h3>
+          <p>Fine-grained policies at target, tool, resource, and prompt level. No access without an explicit allow.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-green">🔑</div>
+          <h3>Credential Injection</h3>
+          <p>Gateway resolves credentials per user, group, or role — and injects them upstream. Clients never see
+            downstream secrets.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-purple">🚀</div>
+          <h3>Four Transports</h3>
+          <p>Streamable HTTP, SSE, STDIO processes, and Kubernetes pods. Auto-detect between Streamable HTTP and SSE.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-blue">🔒</div>
+          <h3>Encryption at Rest</h3>
+          <p>All stored credentials encrypted with AES-256-GCM. Keys never appear in logs or API responses.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan">📋</div>
+          <h3>Audit Logging</h3>
+          <p>Every MCP request logged with user identity, method, target, response status, and duration.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-green">📡</div>
+          <h3>OpenTelemetry</h3>
+          <p>Distributed traces and metrics via OTLP. Grafana + Loki + Tempo stack included in Docker Compose.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-purple">♻️</div>
+          <h3>Session Recycle</h3>
+          <p>Auto-detects JWT claim changes on every request and refreshes sessions without client intervention.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon icon-blue">🐳</div>
+          <h3>Docker &amp; Helm Ready</h3>
+          <p>One-command Docker Compose setup. Production-grade Helm chart with checksum-triggered rollouts.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Transports ──────────────────────────────────────────────────── -->
+  <section style="padding-top:0;">
+    <div class="container">
+      <div class="divider"></div>
+      <br /><br />
+      <div class="section-label">Transports</div>
+      <h2 class="section-title">Meet your MCP servers where they are</h2>
+      <p class="section-sub">Remote HTTP services, local CLI tools, or Kubernetes workloads — the gateway handles it.
+      </p>
+
+      <div class="transport-grid">
+        <div class="transport-card">
+          <span class="transport-badge">streamable-http</span>
+          <h3>Streamable HTTP</h3>
+          <p>For remote MCP servers. Auto-detects between Streamable HTTP and legacy SSE transports.</p>
+        </div>
+        <div class="transport-card">
+          <span class="transport-badge">sse</span>
+          <h3>Server-Sent Events</h3>
+          <p>For legacy MCP servers using the SSE transport. Maintains persistent connection.</p>
+        </div>
+        <div class="transport-card">
+          <span class="transport-badge">stdio</span>
+          <h3>STDIO Processes</h3>
+          <p>Spawn local processes (npx, python…) with isolated credentials per user, group, or role.</p>
+        </div>
+        <div class="transport-card">
+          <span class="transport-badge">kubernetes</span>
+          <h3>Kubernetes Pods</h3>
+          <p>Create isolated pods via MCPInstance CRDs. Operator manages lifecycle, GC, and secrets.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Quick Start ─────────────────────────────────────────────────── -->
+  <section id="quickstart">
+    <div class="container">
+      <div class="section-label">Quick Start</div>
+      <h2 class="section-title">Up and running in minutes</h2>
+
+      <br />
+
+      <div class="code-block">
+        <div class="code-tabs">
+          <div class="code-tab active" onclick="switchTab(this,'tab-compose')">Docker Compose</div>
+          <div class="code-tab" onclick="switchTab(this,'tab-helm')">Helm</div>
+          <div class="code-tab" onclick="switchTab(this,'tab-source')">From source</div>
+        </div>
+
+        <div class="code-content active" id="tab-compose">
+          <pre><span class="cmt"># One-line install</span>
+<span class="str">curl</span> -fsSL https://raw.githubusercontent.com/reflow/gateway/main/install.sh | bash
+
+<span class="cmt"># Or manually:</span>
+<span class="str">git clone</span> https://github.com/JulianPedro/reflow-gateway.git && <span class="str">cd</span> gateway
+<span class="str">cp</span> .env.example .env && <span class="str">cp</span> config.yaml.example config.yaml
+<span class="cmt"># Edit .env with your secrets</span>
+<span class="str">docker compose up</span> -d
+
+<span class="cmt"># Register the first admin user</span>
+<span class="str">curl</span> -X POST http://localhost:3000/api/auth/register \
+  -H <span class="key">"Content-Type: application/json"</span> \
+  -d <span class="str">'{"email":"admin@example.com","password":"secure123"}'</span></pre>
+        </div>
+
+        <div class="code-content" id="tab-helm">
+          <pre><span class="cmt"># Install with Helm (external PostgreSQL required)</span>
+<span class="str">helm install</span> reflow-gateway ./chart \
+  --set secrets.jwtSecret=<span class="str">"$(openssl rand -hex 32)"</span> \
+  --set secrets.encryptionKey=<span class="str">"$(openssl rand -base64 24 | cut -c1-32)"</span> \
+  --set secrets.dbPassword=<span class="str">"$(openssl rand -hex 16)"</span> \
+  --set config.database.host=<span class="str">my-postgres.default.svc</span>
+
+<span class="cmt"># Port-forward to test</span>
+<span class="str">kubectl port-forward</span> svc/reflow-gateway 3000:3000</pre>
+        </div>
+
+        <div class="code-content" id="tab-source">
+          <pre><span class="str">git clone</span> https://github.com/JulianPedro/reflow-gateway.git && <span class="str">cd</span> gateway
+
+<span class="cmt"># Start only PostgreSQL</span>
+<span class="str">docker compose up</span> -d postgres
+
+<span class="cmt"># Run the backend</span>
+<span class="kw">export</span> DB_PASSWORD=dev JWT_SECRET=dev-secret ENCRYPTION_KEY=12345678901234567890123456789012
+<span class="str">cd backend</span> && <span class="str">go run</span> cmd/server/main.go -config ../config.yaml
+
+<span class="cmt"># Run the frontend (optional)</span>
+<span class="str">cd frontend</span> && <span class="str">npm install</span> && <span class="str">npm run dev</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ──────────────────────────────────────────────────────────── -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Stop sharing credentials.<br />Start enforcing access.</h2>
+      <p>One gateway, all your MCP servers, fully under your control.</p>
+      <div class="cta-buttons">
+        <a href="/docs" class="btn btn-primary">Read the docs →</a>
+        <a href="https://github.com/JulianPedro/reflow-gateway" class="btn btn-outline" target="_blank">View on
+          GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ──────────────────────────────────────────────────────── -->
+  <footer>
+    <p>
+      Built with Go · PostgreSQL · MCP Streamable HTTP &nbsp;·&nbsp;
+      <a href="https://github.com/JulianPedro/reflow-gateway" target="_blank">GitHub</a> &nbsp;·&nbsp;
+      <a href="/docs">Docs</a> &nbsp;·&nbsp;
+      <a href="https://github.com/JulianPedro/reflow-gateway/blob/main/LICENSE" target="_blank">MIT License</a>
+    </p>
+    <p style="margin-top:8px;">© 2025 Reflow Gateway</p>
+  </footer>
+
+  <script>
+    function switchTab(el, id) {
+      document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.code-content').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById(id).classList.add('active');
+    }
+  </script>
+</body>
+
+</html>
