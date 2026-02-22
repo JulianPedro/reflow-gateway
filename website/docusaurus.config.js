@@ -6,11 +6,11 @@ const config = {
   tagline: 'MCP multiplexing gateway with authentication, authorization, and credential injection',
   favicon: 'img/favicon.svg',
 
-  url: 'https://reflow-gateway.dev',
-  baseUrl: '/',
-
-  organizationName: 'reflow',
-  projectName: 'gateway',
+  url: 'https://reflowgateway.com',
+  baseUrl: '/docs/',
+  outDir: '../docs/docs',
+  organizationName: 'JulianPedro',
+  projectName: 'reflow-gateway',
 
   onBrokenLinks: 'throw',
 
