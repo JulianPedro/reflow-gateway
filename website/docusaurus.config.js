@@ -8,7 +8,6 @@ const config = {
 
   url: 'https://reflowgateway.com',
   baseUrl: '/docs/',
-  outDir: '../docs/docs',
   organizationName: 'JulianPedro',
   projectName: 'reflow-gateway',
 
