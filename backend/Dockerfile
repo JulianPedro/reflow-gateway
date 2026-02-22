@@ -13,6 +13,10 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# NEXT_PUBLIC_* vars are inlined at build time, not runtime.
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
 
