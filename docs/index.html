@@ -293,7 +293,41 @@
       max-width: 820px;
       width: 100%;
       margin: 0 auto;
+      position: relative;
       box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.05), 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 80px rgba(59, 130, 246, 0.08);
+    }
+
+    .terminal-copy {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #64748b;
+      cursor: pointer;
+      padding: 6px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .2s, color .2s, border-color .2s;
+    }
+
+    .terminal-copy:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #94a3b8;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .terminal-copy.copied {
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.3);
+      background: rgba(74, 222, 128, 0.08);
+    }
+
+    .terminal-copy svg {
+      width: 16px;
+      height: 16px;
     }
 
     .terminal-dots {
@@ -1336,6 +1370,17 @@
       <div class="terminal-dots">
         <span class="d1"></span><span class="d2"></span><span class="d3"></span>
       </div>
+      <button class="terminal-copy" onclick="copyInstallCmd(this)" title="Copy to clipboard">
+        <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+        <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </button>
       <div class="terminal-line">
         <span class="prompt">$</span>
         <span class="cmd">curl -fsSL https://raw.githubusercontent.com/JulianPedro/reflow-gateway/main/install.sh |
@@ -1347,6 +1392,9 @@
       <div class="out"> ✓ Starting services</div>
       <div class="out"> ✓ Gateway is healthy</div>
       <br />
+      <div class="terminal-line">
+        <span class="comment"> Gateway UI: http://localhost:3001</span>
+      </div>
       <div class="terminal-line">
         <span class="comment"> Gateway API: http://localhost:3000</span>
       </div>
@@ -1847,6 +1895,20 @@
       document.querySelectorAll('.code-content').forEach(c => c.classList.remove('active'));
       el.classList.add('active');
       document.getElementById(id).classList.add('active');
+    }
+
+    function copyInstallCmd(btn) {
+      const cmd = 'curl -fsSL https://raw.githubusercontent.com/JulianPedro/reflow-gateway/main/install.sh | bash';
+      navigator.clipboard.writeText(cmd).then(() => {
+        btn.querySelector('.icon-copy').style.display = 'none';
+        btn.querySelector('.icon-check').style.display = 'block';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.querySelector('.icon-copy').style.display = 'block';
+          btn.querySelector('.icon-check').style.display = 'none';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
     }
   </script>
 </body>
