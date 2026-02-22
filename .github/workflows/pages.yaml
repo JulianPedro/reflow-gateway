@@ -1,0 +1,75 @@
+# Deploy landing page + Docusaurus docs to GitHub Pages
+
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'website/**'
+      - 'feature/website'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; don't cancel in-progress so we
+# don't leave the site in a half-deployed state.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install Docusaurus dependencies
+        run: npm ci
+        working-directory: website
+
+      - name: Build Docusaurus
+        run: npm run build
+        working-directory: website
+
+      - name: Assemble site artifact
+        run: |
+          mkdir -p _site
+
+          # Copy all static landing page assets from docs/ root
+          # (index.html, favicon.svg, banner.svg, CNAME, og.png, ...)
+          # Excludes the docs/docs/ subfolder (handled separately below)
+          find docs/ -maxdepth 1 -type f -exec cp {} _site/ \;
+
+          # Overlay freshly built Docusaurus at /docs/
+          cp -r docs/docs _site/docs
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

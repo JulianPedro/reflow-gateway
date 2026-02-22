@@ -30,7 +30,7 @@ An MCP (Model Context Protocol) multiplexing gateway that sits between AI client
 
 ```bash
 git clone https://github.com/JulianPedro/reflow-gateway.git
-cd gateway
+cd reflow-gateway
 
 cp .env.example .env
 # Edit .env with secure secrets (see below)
