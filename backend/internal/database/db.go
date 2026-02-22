@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
@@ -19,18 +20,42 @@ type DB struct {
 	Pool *pgxpool.Pool
 }
 
-// New creates a new database connection
+// New creates a new database connection with retry logic.
+// Retries up to 10 times with a 3-second delay between attempts,
+// handling the window where pg_isready passes but PostgreSQL is
+// still initialising and not yet accepting connections.
 func New(ctx context.Context, dsn string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+	const maxRetries = 10
+	const retryDelay = 3 * time.Second
+
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		pool, err := pgxpool.New(ctx, dsn)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create connection pool: %w", err)
+		} else if pingErr := pool.Ping(ctx); pingErr != nil {
+			pool.Close()
+			lastErr = fmt.Errorf("failed to ping database: %w", pingErr)
+		} else {
+			return &DB{Pool: pool}, nil
+		}
+
+		if attempt < maxRetries {
+			log.Warn().
+				Err(lastErr).
+				Int("attempt", attempt).
+				Int("max", maxRetries).
+				Msgf("Database not ready, retrying in %s...", retryDelay)
+
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(retryDelay):
+			}
+		}
 	}
 
-	if err := pool.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	return &DB{Pool: pool}, nil
+	return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, lastErr)
 }
 
 // Close closes the database connection pool
