@@ -4,7 +4,7 @@ FROM golang:1.24-alpine AS builder
 WORKDIR /app
 
 # Install dependencies
-RUN apk add --no-cache git
+RUN apk add --no-cache git npm
 
 # Copy go mod files
 COPY go.mod go.sum ./
