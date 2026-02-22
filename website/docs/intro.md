@@ -6,6 +6,8 @@ title: Getting Started
 
 # Reflow Gateway
 
+![banner](/img/banner.svg)
+
 An MCP (Model Context Protocol) multiplexing gateway that sits between AI clients and upstream MCP servers, providing authentication, fine-grained authorization, credential injection, and transport abstraction.
 
 ## Features
