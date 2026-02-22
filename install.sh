@@ -147,6 +147,7 @@ printf "${BOLD}═════════════════════�
 printf "${BOLD}  Reflow Gateway is running!${NC}\n"
 printf "${BOLD}════════════════════════════════════════════════${NC}\n"
 printf "\n"
+printf "  Gateway UI:    ${GREEN}http://localhost:3001${NC}\n"
 printf "  Gateway API:   ${GREEN}http://localhost:3000${NC}\n"
 printf "  API Docs:      ${GREEN}http://localhost:3000/docs${NC}\n"
 printf "  Grafana:       ${GREEN}http://localhost:3002${NC}  (admin/admin)\n"

@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reflow -d reflow_gateway"]
+      test: [ "CMD-SHELL", "pg_isready -U reflow -d reflow_gateway" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -37,31 +37,31 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  #frontend:
-  #  build:
-  #    context: ./frontend
-  #    dockerfile: Dockerfile
-  #  container_name: reflow-frontend
-  #  ports:
-  #    - "3001:3001"
-  #  environment:
-  #    NEXT_PUBLIC_API_URL: http://localhost:3000
-  #  depends_on:
-  #    backend:
-  #      condition: service_healthy
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000
+    container_name: reflow-frontend
+    ports:
+      - "3001:3001"
+    depends_on:
+      backend:
+        condition: service_healthy
 
   otel-lgtm:
     image: grafana/otel-lgtm:latest
     container_name: reflow-otel-lgtm
     ports:
-      - "3002:3000"   # Grafana UI (3000 already used by backend)
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
+      - "3002:3000" # Grafana UI (3000 already used by backend)
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
     volumes:
       - ./observability/grafana/provisioning:/otel-lgtm/grafana/conf/provisioning
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards

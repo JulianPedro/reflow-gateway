@@ -12,6 +12,11 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# NEXT_PUBLIC_* vars are inlined at build time, not runtime.
+# Must be declared as ARG so they are available during `npm run build`.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
