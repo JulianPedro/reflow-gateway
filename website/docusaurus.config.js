@@ -47,13 +47,11 @@ const config = {
     ({
       navbar: {
         title: 'Reflow Gateway',
+        logo: {
+          alt: 'Reflow Gateway Logo',
+          src: 'img/favicon.svg',
+        },
         items: [
-          {
-            type: 'docSidebar',
-            sidebarId: 'docs',
-            position: 'left',
-            label: 'Docs',
-          },
           {
             href: 'https://github.com/JulianPedro/reflow-gateway',
             label: 'GitHub',

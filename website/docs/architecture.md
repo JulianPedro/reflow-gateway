@@ -13,13 +13,13 @@ Reflow Gateway is an MCP multiplexing gateway that sits between AI clients (Clau
                           Reflow Gateway
                      +-----------------------+
   AI Clients         |                       |       Upstream MCP Servers
-  (Claude,     ---->  |  POST /mcp (JSON-RPC) |  --->  GitHub (Streamable HTTP)
-   Cursor,     ---->  |  GET  /mcp (SSE)      |  --->  Jira   (SSE)
-   etc.)       ---->  |  DELETE /mcp           |  --->  Custom (STDIO process)
+  (Claude,    ---->  |  POST /mcp (JSON-RPC) |  --->  GitHub (Streamable HTTP)
+   Cursor,    ---->  |  GET  /mcp (SSE)      |  --->  Jira   (SSE)
+   etc.)      ---->  |  DELETE /mcp          |  --->  Custom (STDIO process)
                      |                       |  --->  Internal (Kubernetes pod)
-                     |  JWT Auth + Policies   |
-                     |  Credential Injection  |
-                     |  Tool Multiplexing     |
+                     |  JWT Auth + Policies  |
+                     |  Credential Injection |
+                     |  Tool Multiplexing    |
                      +-----------------------+
                               |
                           PostgreSQL
