@@ -8,7 +8,7 @@
 
 [**Docs**](https://reflowgateway.com/docs) · [**Quick Start**](#quick-start) · [**API Reference**](https://reflowgateway.com/docs/api-reference)
 
-<video src="docs/demo.mp4" width="1280" height="720" controls></video>
+<video src="https://github.com/JulianPedro/reflow-gateway/raw/feature/improve-readme/docs/demo.mp4" width="1280" height="720" controls></video>
 
 </div>
 
